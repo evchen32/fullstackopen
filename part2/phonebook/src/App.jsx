@@ -1,19 +1,22 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Persons from './components/Persons'
 import PersonForm from './components/PersonForm'
 import Filter from './components/Filter'
+import PersonService from './services/persons'
 
 const App = () => {
-  const [persons, setPersons] = useState([
-    { name: 'Arto Hellas', number: '040-123456', id: 1 },
-    { name: 'Ada Lovelace', number: '39-44-5323523', id: 2 },
-    { name: 'Dan Abramov', number: '12-43-234345', id: 3 },
-    { name: 'Mary Poppendieck', number: '39-23-6423122', id: 4 }
-  ])
-
+  const [persons, setPersons] = useState([])
   const [newName, setNewName] = useState('')
   const [newNum, setNewNum] = useState('')
   const [filter, setNewFilter] = useState('')
+
+  useEffect(() => {
+    PersonService
+      .getAll()
+      .then(l => {
+        setPersons(l)
+      })
+  },[])
 
   const addPerson = (event) => {
     event.preventDefault()
@@ -24,14 +27,42 @@ const App = () => {
       )
     })
     
-    if(foundObj || newName.length == 0 || newNum.length == 0) {
-      alert(`${newName} is already added to phonebook`)
+    if(foundObj) {
+      const confirm = window.confirm(`${newName} is already added to phonebook, replace the old number with a new one?`)
+      
+      if(confirm) {
+
+        PersonService
+          .edit({...foundObj, "number": newNum})
+          .then((person) => {
+            setPersons(
+              persons.map((p) => {
+                return p.id === person.id ? person : p
+              })
+            )
+          })
+      }
+
+      setNewName('')
+      setNewNum('')
+      setNewFilter('')
+    } else if(newName.length == 0 || newNum.length == 0) {
       setNewName('')
       setNewNum('')
       setNewFilter('')
     } else {
-      const lPersons = persons.concat({name: newName, number: newNum, id: persons.length + 1})
-      setPersons(lPersons)
+      const person = {
+        name: newName,
+        number: newNum
+      }
+
+      PersonService
+        .create(person)
+        .then(p => {
+          const lPersons = persons.concat(p)
+          setPersons(lPersons)
+        })
+
       setNewName('')
       setNewNum('')
       setNewFilter('')
@@ -50,6 +81,19 @@ const App = () => {
     setNewFilter(event.target.value)
   }
 
+  const handleDelete = (id, name) => {
+    const res = window.confirm(`Delete ${name}?`)
+
+    if(res) {
+      const l = persons.filter((p) => {
+        return p.id !== id
+      })
+
+      setPersons(l)
+      PersonService.remove(id)
+    }
+  }
+
   const fPersons = persons.filter(p => {
     return (
       p.name.toLowerCase().includes(filter.toLowerCase())
@@ -63,7 +107,7 @@ const App = () => {
       <h3>Add a new</h3>
       <PersonForm onSubmit={addPerson} newName={newName} newNum={newNum} handleNameChange={handleNameChange} handleNumChange={handleNumChange}/> 
       <h2>Numbers</h2>
-      <Persons persons={fPersons}/>
+      <Persons persons={fPersons} handleDelete={handleDelete}/>
     </div>
   )
 }
